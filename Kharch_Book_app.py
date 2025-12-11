@@ -182,11 +182,11 @@ with st.sidebar:
     
     # Mini Balance Preview in Sidebar
     st.caption("Current Balance")
-    st.markdown(f"**Cash:** ₹{bal_cash:,.0f}")
-    st.markdown(f"**Online:** ₹{bal_online:,.0f}")
+    st.markdown(f"**Cash:** ₹{bal_cash:,.2f}")
+    st.markdown(f"**Online:** ₹{bal_online:,.2f}")
     
     st.divider()
-    st.caption(f"v2.1.1 • Data saved to CSV")
+    st.caption(f"v2.2 • Data saved to CSV")
 
 # --- PAGE ROUTING ---
 
@@ -197,13 +197,13 @@ if selected_page == "Expenses":
     # Dashboard Cards
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.2f}</div></div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.2f}</div></div>""", unsafe_allow_html=True)
     with c3:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Spent Today</div><div class="metric-value red-text">₹{today_spent:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Spent Today</div><div class="metric-value red-text">₹{today_spent:,.2f}</div></div>""", unsafe_allow_html=True)
     with c4:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Total Spent</div><div class="metric-value">₹{total_spent:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Total Spent</div><div class="metric-value">₹{total_spent:,.2f}</div></div>""", unsafe_allow_html=True)
 
     st.write("")
     
@@ -222,7 +222,8 @@ if selected_page == "Expenses":
             with col2:
                 c_a, c_b = st.columns([2, 1])
                 with c_a:
-                    amount = st.number_input("Amount (₹)", min_value=0.0, step=10.0)
+                    # Input empty by default
+                    amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
                 with c_b:
                     st.write("") 
                     st.write("") 
@@ -231,7 +232,9 @@ if selected_page == "Expenses":
 
             if st.form_submit_button("Add Expense", type="primary", use_container_width=True):
                 final_cat = custom_category.strip() if cat_selection == "Other" and custom_category else cat_selection
-                if item and amount > 0:
+                
+                # Check for None explicitly because amount is None initially
+                if item and amount is not None and amount > 0:
                     new_entry = pd.DataFrame([{
                         "Date": date, "Item": item, "Category": final_cat, "Amount": amount, "Mode": mode
                     }])
@@ -279,37 +282,90 @@ if selected_page == "Expenses":
     st.download_button("📥 Download Expenses CSV", csv, "expenses.csv", "text/csv", use_container_width=True)
 
 
-# 2. WALLET (Add Funds)
+# 2. WALLET (Add Funds & Exchange)
 elif selected_page == "Wallet":
     st.title("💳 Wallet Manager")
     
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.2f}</div></div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.0f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.2f}</div></div>""", unsafe_allow_html=True)
     
     st.write("")
-    st.info("Add your salary, cash withdrawals, or other income here.")
     
-    with st.form("add_funds_form", clear_on_submit=True):
-        f_amount = st.number_input("Amount (₹)", min_value=0.0, step=100.0)
-        f_mode = st.radio("Destination Wallet", ["Online (Bank/UPI)", "Cash"], horizontal=True)
-        f_source = st.text_input("Source / Note", placeholder="e.g. Salary, ATM Withdrawal, Gift")
-        
-        if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
-            if f_amount > 0:
-                new_fund = pd.DataFrame([{
-                    "Date": datetime.now().date(),
-                    "Source": f_source if f_source else "Manual Add",
-                    "Mode": "Online" if "Online" in f_mode else "Cash",
-                    "Amount": f_amount
-                }])
-                df_funds = pd.concat([new_fund, df_funds], ignore_index=True)
-                st.session_state.funds = df_funds
-                save_csv(df_funds, FUNDS_FILE)
-                st.success("Funds Added Successfully!")
-                st.rerun()
+    # New Tabs for Add vs Exchange
+    tab_add, tab_exchange = st.tabs(["➕ Add New Funds", "💱 Exchange / Transfer"])
+    
+    with tab_add:
+        st.info("Add your salary, cash withdrawals, or other income here.")
+        with st.form("add_funds_form", clear_on_submit=True):
+            f_amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
+            f_mode = st.radio("Destination Wallet", ["Online (Bank/UPI)", "Cash"], horizontal=True)
+            f_source = st.text_input("Source / Note", placeholder="e.g. Salary, Gift")
+            
+            if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
+                if f_amount is not None and f_amount > 0:
+                    new_fund = pd.DataFrame([{
+                        "Date": datetime.now().date(),
+                        "Source": f_source if f_source else "Manual Add",
+                        "Mode": "Online" if "Online" in f_mode else "Cash",
+                        "Amount": f_amount
+                    }])
+                    df_funds = pd.concat([new_fund, df_funds], ignore_index=True)
+                    st.session_state.funds = df_funds
+                    save_csv(df_funds, FUNDS_FILE)
+                    st.success("Funds Added Successfully!")
+                    st.rerun()
+
+    with tab_exchange:
+        st.info("Move money between your wallets (e.g., withdrawing cash from ATM).")
+        with st.form("transfer_form", clear_on_submit=True):
+            t_amount = st.number_input("Transfer Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
+            
+            st.write("Select Direction:")
+            t_direction = st.radio(
+                "Direction",
+                ["Online ➔ Cash (Withdrawal)", "Cash ➔ Online (Deposit)"],
+                label_visibility="collapsed"
+            )
+            
+            t_note = st.text_input("Note (Optional)", placeholder="e.g. ATM Withdrawal")
+            
+            if st.form_submit_button("🔄 Confirm Transfer", type="primary", use_container_width=True):
+                if t_amount is not None and t_amount > 0:
+                    if "Online ➔ Cash" in t_direction:
+                        src = "Online"
+                        dst = "Cash"
+                        desc_out = f"Transfer to {dst}"
+                        desc_in = f"Transfer from {src}"
+                    else:
+                        src = "Cash"
+                        dst = "Online"
+                        desc_out = f"Transfer to {dst}"
+                        desc_in = f"Transfer from {src}"
+                    
+                    # Logic: Add negative fund to source, positive fund to dest
+                    row_out = {
+                        "Date": datetime.now().date(),
+                        "Source": f"{desc_out} ({t_note})" if t_note else desc_out,
+                        "Mode": src,
+                        "Amount": -t_amount
+                    }
+                    row_in = {
+                        "Date": datetime.now().date(),
+                        "Source": f"{desc_in} ({t_note})" if t_note else desc_in,
+                        "Mode": dst,
+                        "Amount": t_amount
+                    }
+                    
+                    new_transfer = pd.DataFrame([row_out, row_in])
+                    st.session_state.funds = pd.concat([new_transfer, st.session_state.funds], ignore_index=True)
+                    save_csv(st.session_state.funds, FUNDS_FILE)
+                    st.toast(f"Transferred ₹{t_amount}", icon="✅")
+                    st.rerun()
+                else:
+                    st.error("Please enter an amount.")
 
 # 3. CALCULATOR
 elif selected_page == "Calculator":
