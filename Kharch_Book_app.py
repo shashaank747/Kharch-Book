@@ -113,7 +113,8 @@ with st.expander("🧮 Quick Calculator"):
     st.caption(f"Result: **{res}**")
 
 # Input Form
-with st.container(border=True):
+# FIX: Using st.form with clear_on_submit=True prevents the Session State error
+with st.form("add_expense_form", clear_on_submit=True, border=True):
     st.subheader("Add New Expense")
     col1, col2, col3 = st.columns([2, 1, 1])
     
@@ -129,7 +130,10 @@ with st.container(border=True):
         st.write("Paid Via:")
         mode = st.radio("Mode", ["Online", "Cash"], key="mode_in")
         
-    if st.button("Add Expense", type="primary", use_container_width=True):
+    # Form submit button
+    submitted = st.form_submit_button("Add Expense", type="primary", use_container_width=True)
+    
+    if submitted:
         if item and amount > 0:
             new_entry = pd.DataFrame([{
                 "Date": date,
@@ -138,13 +142,12 @@ with st.container(border=True):
                 "Amount": amount,
                 "Mode": mode
             }])
-            df_expenses = pd.concat([new_entry, df_expenses], ignore_index=True)
-            st.session_state.expenses = df_expenses
-            save_csv(df_expenses, EXPENSES_FILE)
+            # Append directly to session state
+            st.session_state.expenses = pd.concat([new_entry, st.session_state.expenses], ignore_index=True)
+            save_csv(st.session_state.expenses, EXPENSES_FILE)
             
-            # Reset Inputs
-            st.session_state["item_in"] = ""
-            st.session_state["amt_in"] = 0.0
+            # Note: We do NOT need to manually clear inputs here. 
+            # clear_on_submit=True handles it automatically.
             
             st.toast("Expense Added! Balance Updated.", icon="✅")
             st.rerun()
