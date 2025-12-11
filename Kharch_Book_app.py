@@ -5,77 +5,100 @@ from datetime import datetime, timedelta
 import os
 
 # --- Configuration ---
-st.set_page_config(page_title="Kharch Book", page_icon="💸", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Kharch Book", page_icon="💰", layout="wide", initial_sidebar_state="collapsed")
 
-# --- Custom CSS for UI Polish ---
+# --- Custom CSS for Mobile UI Polish ---
 st.markdown("""
 <style>
     /* Main Background adjustments */
     .stApp {
-        background-color: #0e1117;
+        background-color: #000000;
     }
+    
+    /* We DO NOT hide the header anymore so the Sidebar Toggle (Hamburger/Arrow) is visible */
+    /* header {visibility: hidden;} <--- REMOVED THIS */
     
     /* Card Styling */
     .metric-card {
-        background-color: #262730;
+        background-color: #1c1c1e;
         border: 1px solid #333;
         padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        border-radius: 15px;
         text-align: center;
-        transition: transform 0.2s;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 8px rgba(0,0,0,0.4);
+        margin-bottom: 10px;
     }
     .metric-value {
-        font-size: 1.8rem;
+        font-size: 1.5rem;
         font-weight: 700;
         margin: 5px 0;
         color: #ffffff;
     }
     .metric-label {
-        font-size: 0.9rem;
-        color: #a0a0a0;
+        font-size: 0.8rem;
+        color: #8e8e93;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
     }
-    .green-text { color: #4CAF50; }
-    .blue-text { color: #2196F3; }
-    .red-text { color: #FF5252; }
+    .green-text { color: #32d74b; }
+    .blue-text { color: #0a84ff; }
+    .red-text { color: #ff453a; }
     
-    /* Button Styling Override */
+    /* Button Styling - Apple Style */
     div.stButton > button {
-        border-radius: 8px;
-        height: 3em;
-        font-weight: bold;
+        border-radius: 12px;
+        height: 3.5em;
+        font-weight: 600;
+        border: none;
+        background-color: #0a84ff;
+        color: white;
+    }
+    div.stButton > button:active {
+        background-color: #007aff;
     }
     
-    /* Calculator Button specific styling */
+    /* Calculator Button Styling */
     div[data-testid="column"] button {
-        background-color: #2b2d3e;
+        background-color: #333333;
         color: white;
-        border: none;
+        border-radius: 50px;
+        height: 70px;
+        width: 70px; 
+        font-size: 24px;
+        margin: 0 auto;
+        display: block;
     }
     div[data-testid="column"] button:hover {
-        background-color: #3b3d54;
-        border-color: #555;
+        background-color: #444;
+        border: 1px solid #555;
     }
-    /* Make equal button blue */
-    div[data-testid="column"] button[kind="primary"] {
-        background-color: #2196F3 !important;
+    div[data-testid="column"] button:active {
+        background-color: #777;
+    }
+    
+    /* Input Fields */
+    input[type="text"], input[type="number"] {
+        background-color: #1c1c1e !important;
         color: white !important;
+        border: 1px solid #333 !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="select"] > div {
+        background-color: #1c1c1e !important;
+        border-color: #333 !important;
+        color: white !important;
+        border-radius: 10px !important;
     }
     
-    /* Hide default header */
-    header {visibility: hidden;}
-    
-    /* Sidebar Radio styling */
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #1c1c1e;
+    }
     section[data-testid="stSidebar"] .stRadio > label {
         font-size: 1.2rem !important;
         font-weight: bold;
+        color: white;
     }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,7 +108,6 @@ TODO_FILE = 'todo.csv'
 
 # --- Helper Functions ---
 def get_ist_date():
-    """Returns current date in IST (UTC + 5:30) to fix server timezone issues."""
     utc_now = datetime.utcnow()
     ist_now = utc_now + timedelta(hours=5, minutes=30)
     return ist_now.date()
@@ -98,29 +120,21 @@ def load_csv(file_path, columns):
                 df['Date'] = pd.to_datetime(df['Date']).dt.date
             for col in columns:
                 if col not in df.columns:
-                    # Default values for missing columns
                     if col == "Done":
                         df[col] = False
                     elif col == "Mode":
                         df[col] = "Online"
                     else:
                         df[col] = ""
-            
-            # Fix: Ensure 'Done' column is strictly boolean for data_editor
             if "Done" in df.columns:
-                # Robust conversion: map string 'true'/'1' to True, everything else to False
-                # This avoids errors where "False" string becomes True boolean
                 df["Done"] = df["Done"].astype(str).str.lower().isin(['true', '1', 'yes', 't'])
-                
             return df
         except Exception as e:
-            # Return empty df with correct types if read fails
             df = pd.DataFrame(columns=columns)
             if "Done" in columns:
                 df["Done"] = df["Done"].astype(bool)
             return df
     else:
-        # Return empty df with correct types
         df = pd.DataFrame(columns=columns)
         if "Done" in columns:
             df["Done"] = df["Done"].astype(bool)
@@ -131,7 +145,6 @@ def save_csv(df, file_path):
 
 # --- App Logic ---
 
-# 1. Load Data
 if 'expenses' not in st.session_state:
     st.session_state.expenses = load_csv(EXPENSES_FILE, ["Date", "Item", "Category", "Amount", "Mode"])
 if 'funds' not in st.session_state:
@@ -143,7 +156,7 @@ df_expenses = st.session_state.expenses
 df_funds = st.session_state.funds
 df_todo = st.session_state.todo
 
-# --- Dynamic Category Logic ---
+# --- Categories ---
 default_categories = ["Food", "Travel", "Bills", "Shopping", "Entertainment", "Other"]
 if 'Category' in df_expenses.columns:
     existing_categories = [str(x) for x in df_expenses['Category'].dropna().unique().tolist()]
@@ -155,7 +168,7 @@ if "Other" in combined_categories:
 combined_categories.sort()
 combined_categories.append("Other")
 
-# --- Calculations for Dashboard ---
+# --- Calculations ---
 total_cash_in = df_funds[df_funds['Mode'] == 'Cash']['Amount'].sum()
 total_online_in = df_funds[df_funds['Mode'] == 'Online']['Amount'].sum()
 
@@ -174,73 +187,61 @@ today_spent = df_expenses[df_expenses['Date'] == today_date]['Amount'].sum()
 total_spent = df_expenses['Amount'].sum()
 
 # --- SIDEBAR NAVIGATION ---
+# Restored Sidebar Navigation
 with st.sidebar:
     st.markdown("## 💰 Kharch Book")
-    
-    # Navigation Menu
     selected_page = st.radio(
         "Menu", 
-        ["Expenses", "Wallet", "Calculator", "Analysis", "Funds History", "To-Buy List"],
+        ["Expenses", "Wallet", "Calculator", "Analysis", "To-Buy List", "Funds History"],
         label_visibility="collapsed"
     )
-    
     st.divider()
-    
-    # Mini Balance Preview in Sidebar
-    st.caption("Current Balance")
-    st.markdown(f"**Cash:** ₹{bal_cash:,.2f}")
-    st.markdown(f"**Online:** ₹{bal_online:,.2f}")
-    
-    st.divider()
-    st.caption(f"v2.3 • Data saved to CSV")
+    st.caption("v2.4 • Mobile Sidebar Restored")
 
 # --- PAGE ROUTING ---
 
-# 1. EXPENSES (Dashboard)
+# 1. EXPENSES
 if selected_page == "Expenses":
+    # Title (Since we don't have the top selectbox anymore)
     st.title("📝 Expenses")
     
     # Dashboard Cards
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Bal</div><div class="metric-value green-text">₹{bal_cash:,.0f}</div></div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Bal</div><div class="metric-value blue-text">₹{bal_online:,.0f}</div></div>""", unsafe_allow_html=True)
     with c3:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Spent Today</div><div class="metric-value red-text">₹{today_spent:,.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Today</div><div class="metric-value red-text">₹{today_spent:,.0f}</div></div>""", unsafe_allow_html=True)
     with c4:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Total Spent</div><div class="metric-value">₹{total_spent:,.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Total</div><div class="metric-value">₹{total_spent:,.0f}</div></div>""", unsafe_allow_html=True)
 
-    st.write("")
-    
     # Add Expense Form
     with st.container(border=True):
-        st.subheader("Add New Entry")
+        st.subheader("Add New Expense")
         with st.form("add_expense_form", clear_on_submit=True):
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                item = st.text_input("Description", placeholder="What did you buy?")
+            item = st.text_input("Description", placeholder="e.g. Vegetables")
+            
+            c_cat, c_amt = st.columns(2)
+            with c_cat:
                 cat_selection = st.selectbox("Category", combined_categories)
-                if cat_selection == "Other":
-                     custom_category = st.text_input("Enter New Category Name", placeholder="e.g. Medical")
-                else:
-                     custom_category = None
-            with col2:
-                c_a, c_b = st.columns([2, 1])
-                with c_a:
-                    # FIX: value=None makes the input empty by default
-                    amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
-                with c_b:
-                    st.write("") 
-                    st.write("") 
-                    mode = st.radio("Pay Mode", ["Online", "Cash"], label_visibility="collapsed")
-                # FIX: Use get_ist_date() to default to Today (IST)
+            with c_amt:
+                amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
+            
+            if cat_selection == "Other":
+                 custom_category = st.text_input("New Category Name")
+            else:
+                 custom_category = None
+            
+            c_mode, c_date = st.columns(2)
+            with c_mode:
+                mode = st.radio("Mode", ["Online", "Cash"], horizontal=True)
+            with c_date:
                 date = st.date_input("Date", value=get_ist_date())
 
             if st.form_submit_button("Add Expense", type="primary", use_container_width=True):
                 final_cat = custom_category.strip() if cat_selection == "Other" and custom_category else cat_selection
                 
-                # Check for None explicitly because amount is None initially
                 if item and amount is not None and amount > 0:
                     new_entry = pd.DataFrame([{
                         "Date": date, "Item": item, "Category": final_cat, "Amount": amount, "Mode": mode
@@ -250,22 +251,22 @@ if selected_page == "Expenses":
                     st.toast("Saved!", icon="✅")
                     st.rerun()
                 else:
-                    st.error("Please enter description and amount")
+                    st.error("Enter details")
 
-    # Expenses Table
-    st.write("### 📜 Recent Transactions")
+    # Table
+    st.write("### Transactions")
     with st.expander("🗑️ Delete Tool"):
         if not df_expenses.empty:
             del_opts = [f"{i} | {r['Date']} | {r['Item']} | ₹{r['Amount']}" for i, r in df_expenses.iterrows()]
             del_opts.reverse()
-            sel_del = st.selectbox("Select item to delete", del_opts, label_visibility="collapsed")
-            if st.button("Delete Selected Expense", type="primary"):
+            sel_del = st.selectbox("Select item", del_opts, label_visibility="collapsed")
+            if st.button("Delete Selected", type="primary"):
                 idx = int(sel_del.split(" | ")[0])
                 st.session_state.expenses = df_expenses.drop(idx).reset_index(drop=True)
                 save_csv(st.session_state.expenses, EXPENSES_FILE)
                 st.rerun()
         else:
-            st.info("No expenses to delete.")
+            st.info("Empty")
 
     edited_expenses = st.data_editor(
         df_expenses,
@@ -274,7 +275,7 @@ if selected_page == "Expenses":
         hide_index=True,
         column_config={
             "Amount": st.column_config.NumberColumn(format="₹%.2f"),
-            "Date": st.column_config.DateColumn(format="DD MMM YYYY"),
+            "Date": st.column_config.DateColumn(format="DD MMM"),
             "Category": st.column_config.SelectboxColumn(options=combined_categories, required=True),
             "Mode": st.column_config.SelectboxColumn(options=["Online", "Cash"], required=True)
         }
@@ -283,100 +284,67 @@ if selected_page == "Expenses":
         st.session_state.expenses = edited_expenses
         save_csv(edited_expenses, EXPENSES_FILE)
         st.rerun()
-    
+
     st.divider()
     csv = df_expenses.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Expenses CSV", csv, "expenses.csv", "text/csv", use_container_width=True)
+    st.download_button("📥 Backup CSV", csv, "expenses.csv", "text/csv", use_container_width=True)
 
-
-# 2. WALLET (Add Funds & Exchange)
+# 2. WALLET
 elif selected_page == "Wallet":
-    st.title("💳 Wallet Manager")
+    st.title("💳 Wallet")
     
+    # Balances
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash</div><div class="metric-value green-text">₹{bal_cash:,.2f}</div></div>""", unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.2f}</div></div>""", unsafe_allow_html=True)
-    
-    st.write("")
-    
-    # New Tabs for Add vs Exchange
-    tab_add, tab_exchange = st.tabs(["➕ Add New Funds", "💱 Exchange / Transfer"])
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online</div><div class="metric-value blue-text">₹{bal_online:,.2f}</div></div>""", unsafe_allow_html=True)
+
+    tab_add, tab_exchange = st.tabs(["➕ Add", "💱 Transfer"])
     
     with tab_add:
-        st.info("Add your salary, cash withdrawals, or other income here.")
         with st.form("add_funds_form", clear_on_submit=True):
             f_amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
-            f_mode = st.radio("Destination Wallet", ["Online (Bank/UPI)", "Cash"], horizontal=True)
-            f_source = st.text_input("Source / Note", placeholder="e.g. Salary, Gift")
-            # Added Date Input
+            f_mode = st.radio("To", ["Online", "Cash"], horizontal=True)
+            f_source = st.text_input("Source", placeholder="Salary, ATM")
             f_date = st.date_input("Date", value=get_ist_date())
             
-            if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
+            if st.form_submit_button("Add Money", type="primary", use_container_width=True):
                 if f_amount is not None and f_amount > 0:
                     new_fund = pd.DataFrame([{
                         "Date": f_date,
-                        "Source": f_source if f_source else "Manual Add",
+                        "Source": f_source if f_source else "Add",
                         "Mode": "Online" if "Online" in f_mode else "Cash",
                         "Amount": f_amount
                     }])
                     df_funds = pd.concat([new_fund, df_funds], ignore_index=True)
                     st.session_state.funds = df_funds
                     save_csv(df_funds, FUNDS_FILE)
-                    st.success("Funds Added Successfully!")
+                    st.toast("Added!", icon="💰")
                     st.rerun()
 
     with tab_exchange:
-        st.info("Move money between your wallets (e.g., withdrawing cash from ATM).")
         with st.form("transfer_form", clear_on_submit=True):
-            t_amount = st.number_input("Transfer Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
-            
-            st.write("Select Direction:")
-            t_direction = st.radio(
-                "Direction",
-                ["Online ➔ Cash (Withdrawal)", "Cash ➔ Online (Deposit)"],
-                label_visibility="collapsed"
-            )
-            
-            t_note = st.text_input("Note (Optional)", placeholder="e.g. ATM Withdrawal")
-            # Added Date Input
+            t_amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
+            t_direction = st.radio("Type", ["Online ➔ Cash", "Cash ➔ Online"], horizontal=True)
+            t_note = st.text_input("Note")
             t_date = st.date_input("Date", value=get_ist_date())
             
-            if st.form_submit_button("🔄 Confirm Transfer", type="primary", use_container_width=True):
+            if st.form_submit_button("Transfer", type="primary", use_container_width=True):
                 if t_amount is not None and t_amount > 0:
                     if "Online ➔ Cash" in t_direction:
-                        src = "Online"
-                        dst = "Cash"
-                        desc_out = f"Transfer to {dst}"
-                        desc_in = f"Transfer from {src}"
+                        src, dst = "Online", "Cash"
                     else:
-                        src = "Cash"
-                        dst = "Online"
-                        desc_out = f"Transfer to {dst}"
-                        desc_in = f"Transfer from {src}"
+                        src, dst = "Cash", "Online"
                     
-                    # Logic: Add negative fund to source, positive fund to dest
-                    row_out = {
-                        "Date": t_date,
-                        "Source": f"{desc_out} ({t_note})" if t_note else desc_out,
-                        "Mode": src,
-                        "Amount": -t_amount
-                    }
-                    row_in = {
-                        "Date": t_date,
-                        "Source": f"{desc_in} ({t_note})" if t_note else desc_in,
-                        "Mode": dst,
-                        "Amount": t_amount
-                    }
+                    row_out = {"Date": t_date, "Source": f"Transfer to {dst}", "Mode": src, "Amount": -t_amount}
+                    row_in = {"Date": t_date, "Source": f"Transfer from {src}", "Mode": dst, "Amount": t_amount}
                     
                     new_transfer = pd.DataFrame([row_out, row_in])
                     st.session_state.funds = pd.concat([new_transfer, st.session_state.funds], ignore_index=True)
                     save_csv(st.session_state.funds, FUNDS_FILE)
-                    st.toast(f"Transferred ₹{t_amount}", icon="✅")
+                    st.toast("Done!", icon="✅")
                     st.rerun()
-                else:
-                    st.error("Please enter an amount.")
 
 # 3. CALCULATOR
 elif selected_page == "Calculator":
@@ -471,7 +439,6 @@ elif selected_page == "Analysis":
 # 5. FUNDS HISTORY
 elif selected_page == "Funds History":
     st.title("💰 Funds History")
-    st.caption("Log of all money added to your wallet.")
     
     edited_funds = st.data_editor(
         df_funds,
@@ -490,7 +457,6 @@ elif selected_page == "Funds History":
 
 # 6. TO-BUY LIST
 elif selected_page == "To-Buy List":
-    # Editable Title
     if "todo_title" not in st.session_state:
         st.session_state.todo_title = "🛍️ Shopping List"
     
@@ -503,67 +469,43 @@ elif selected_page == "To-Buy List":
     st.title(st.session_state.todo_title)
     st.caption("Tick items when bought, then click 'Clean Up' to remove them.")
 
-    # FIX: Ensure strict column types before data_editor to prevent API Exception
-    # This block sanitizes the dataframe in case session state holds stale mixed-type data
     if not df_todo.empty:
-        # 1. Force Done column to boolean (True/False)
-        # We fill NaNs with False first
         df_todo["Done"] = df_todo["Done"].fillna(False).astype(bool)
-        
-        # 2. Force text columns to string
         if "Item" in df_todo.columns:
             df_todo["Item"] = df_todo["Item"].fillna("").astype(str)
         if "Notes" in df_todo.columns:
             df_todo["Notes"] = df_todo["Notes"].fillna("").astype(str)
     else:
-        # Initialize empty columns with correct dtypes
         df_todo = pd.DataFrame(columns=["Done", "Item", "Notes"])
         df_todo["Done"] = df_todo["Done"].astype(bool)
         df_todo["Item"] = df_todo["Item"].astype(str)
         df_todo["Notes"] = df_todo["Notes"].astype(str)
         st.session_state.todo = df_todo
 
-    # Main Todo Editor
     edited_todo = st.data_editor(
         df_todo,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Done": st.column_config.CheckboxColumn(
-                "Bought?",
-                help="Check this box when you have bought the item",
-                default=False,
-                width="small"
-            ),
-            "Item": st.column_config.TextColumn(
-                "Item Name",
-                width="medium",
-                required=True
-            ),
-            "Notes": st.column_config.TextColumn(
-                "Notes (Qty/Brand)",
-                width="large"
-            )
+            "Done": st.column_config.CheckboxColumn("Bought?", default=False, width="small"),
+            "Item": st.column_config.TextColumn("Item Name", width="medium", required=True),
+            "Notes": st.column_config.TextColumn("Notes", width="large")
         }
     )
 
-    # Save changes automatically
     if not edited_todo.equals(df_todo):
         st.session_state.todo = edited_todo
         save_csv(edited_todo, TODO_FILE)
         st.rerun()
 
-    # Logic to remove completed items
-    # Check if any item is marked as Done
     if not edited_todo.empty and edited_todo['Done'].any():
         st.write("")
         col_clean1, col_clean2 = st.columns([1, 4])
         with col_clean1:
             if st.button("🗑️ Clean Up", type="primary", help="Remove all checked items"):
-                # Filter out the rows where Done is True
                 df_remaining = edited_todo[edited_todo['Done'] == False]
                 st.session_state.todo = df_remaining.reset_index(drop=True)
                 save_csv(st.session_state.todo, TODO_FILE)
-                st.toast("List cleaned!", icon="🧹")
+                st.toast("Cleaned!", icon="🧹")
                 st.rerun()
