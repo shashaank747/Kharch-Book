@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 # --- Configuration ---
-st.set_page_config(page_title="Kharch Book", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Kharch Book", page_icon="₹", layout="wide", initial_sidebar_state="expanded")
 
 # --- Custom CSS for UI Polish ---
 st.markdown("""
@@ -99,11 +99,24 @@ def load_csv(file_path, columns):
                         df[col] = "Online"
                     else:
                         df[col] = ""
+            
+            # Fix: Ensure 'Done' column is strictly boolean for data_editor
+            if "Done" in df.columns:
+                df["Done"] = df["Done"].fillna(False).astype(bool)
+                
             return df
         except Exception as e:
-            return pd.DataFrame(columns=columns)
+            # Return empty df with correct types if read fails
+            df = pd.DataFrame(columns=columns)
+            if "Done" in columns:
+                df["Done"] = df["Done"].astype(bool)
+            return df
     else:
-        return pd.DataFrame(columns=columns)
+        # Return empty df with correct types
+        df = pd.DataFrame(columns=columns)
+        if "Done" in columns:
+            df["Done"] = df["Done"].astype(bool)
+        return df
 
 def save_csv(df, file_path):
     df.to_csv(file_path, index=False)
