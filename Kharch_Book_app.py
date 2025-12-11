@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 from datetime import datetime
 import os
 
@@ -151,7 +152,7 @@ with st.sidebar:
                 st.rerun()
     
     st.divider()
-    st.caption(f"v1.2 • Data saved to CSV")
+    st.caption(f"v1.3 • Data saved to CSV")
 
 # --- MAIN PAGE ---
 st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>💰 Kharch Book</h1>", unsafe_allow_html=True)
@@ -234,7 +235,7 @@ with st.container():
 
 # 3. Data & Tools Tabs
 st.write("")
-tab1, tab2, tab3 = st.tabs(["📜 Expense Log", "💳 Funds History", "📥 Export"])
+tab1, tab2, tab3, tab4 = st.tabs(["📜 Expense Log", "📊 Analysis", "💳 Funds History", "📥 Export"])
 
 with tab1:
     # Delete Tool
@@ -269,6 +270,50 @@ with tab1:
         st.rerun()
 
 with tab2:
+    if not df_expenses.empty:
+        col_charts1, col_charts2 = st.columns(2)
+        
+        # 1. Category Breakdown (Donut Chart)
+        with col_charts1:
+            st.markdown("##### 🍩 Expenses by Category")
+            category_data = df_expenses.groupby("Category")["Amount"].sum().reset_index()
+            
+            base = alt.Chart(category_data).encode(
+                theta=alt.Theta("Amount", stack=True)
+            )
+            
+            pie = base.mark_arc(outerRadius=120, innerRadius=80).encode(
+                color=alt.Color("Category"),
+                order=alt.Order("Amount", sort="descending"),
+                tooltip=["Category", "Amount"]
+            )
+            
+            text = base.mark_text(radius=140).encode(
+                text="Amount",
+                order=alt.Order("Amount", sort="descending"),
+                color=alt.value("white")
+            )
+            
+            st.altair_chart(pie + text, use_container_width=True)
+
+        # 2. Daily Trend (Bar Chart)
+        with col_charts2:
+            st.markdown("##### 📅 Daily Spending Trend")
+            daily_data = df_expenses.groupby("Date")["Amount"].sum().reset_index()
+            # Ensure proper sorting by date
+            daily_data = daily_data.sort_values("Date")
+            
+            bar_chart = alt.Chart(daily_data).mark_bar(color='#FF5252').encode(
+                x=alt.X('Date', axis=alt.Axis(format='%d %b')),
+                y='Amount',
+                tooltip=['Date', 'Amount']
+            ).interactive()
+            
+            st.altair_chart(bar_chart, use_container_width=True)
+    else:
+        st.info("Add some expenses to see your analytics here.")
+
+with tab3:
     edited_funds = st.data_editor(
         df_funds,
         num_rows="dynamic",
@@ -284,7 +329,7 @@ with tab2:
         save_csv(edited_funds, FUNDS_FILE)
         st.rerun()
 
-with tab3:
+with tab4:
     st.warning("Ensure you download this backup periodically.")
     csv = df_expenses.to_csv(index=False).encode('utf-8')
     st.download_button("📥 Download Expenses (CSV)", csv, "expenses.csv", "text/csv", use_container_width=True)
