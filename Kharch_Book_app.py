@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 # --- Configuration ---
-st.set_page_config(page_title="Kharch Book", page_icon="₹", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Kharch Book", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
 
 # --- Custom CSS for UI Polish ---
 st.markdown("""
@@ -102,7 +102,9 @@ def load_csv(file_path, columns):
             
             # Fix: Ensure 'Done' column is strictly boolean for data_editor
             if "Done" in df.columns:
-                df["Done"] = df["Done"].fillna(False).astype(bool)
+                # Robust conversion: map string 'true'/'1' to True, everything else to False
+                # This avoids errors where "False" string becomes True boolean
+                df["Done"] = df["Done"].astype(str).str.lower().isin(['true', '1', 'yes', 't'])
                 
             return df
         except Exception as e:
@@ -184,7 +186,7 @@ with st.sidebar:
     st.markdown(f"**Online:** ₹{bal_online:,.0f}")
     
     st.divider()
-    st.caption(f"v2.1 • Data saved to CSV")
+    st.caption(f"v2.1.1 • Data saved to CSV")
 
 # --- PAGE ROUTING ---
 
@@ -434,6 +436,26 @@ elif selected_page == "To-Buy List":
     st.title(st.session_state.todo_title)
     st.caption("Tick items when bought, then click 'Clean Up' to remove them.")
 
+    # FIX: Ensure strict column types before data_editor to prevent API Exception
+    # This block sanitizes the dataframe in case session state holds stale mixed-type data
+    if not df_todo.empty:
+        # 1. Force Done column to boolean (True/False)
+        # We fill NaNs with False first
+        df_todo["Done"] = df_todo["Done"].fillna(False).astype(bool)
+        
+        # 2. Force text columns to string
+        if "Item" in df_todo.columns:
+            df_todo["Item"] = df_todo["Item"].fillna("").astype(str)
+        if "Notes" in df_todo.columns:
+            df_todo["Notes"] = df_todo["Notes"].fillna("").astype(str)
+    else:
+        # Initialize empty columns with correct dtypes
+        df_todo = pd.DataFrame(columns=["Done", "Item", "Notes"])
+        df_todo["Done"] = df_todo["Done"].astype(bool)
+        df_todo["Item"] = df_todo["Item"].astype(str)
+        df_todo["Notes"] = df_todo["Notes"].astype(str)
+        st.session_state.todo = df_todo
+
     # Main Todo Editor
     edited_todo = st.data_editor(
         df_todo,
@@ -467,7 +489,7 @@ elif selected_page == "To-Buy List":
 
     # Logic to remove completed items
     # Check if any item is marked as Done
-    if edited_todo['Done'].any():
+    if not edited_todo.empty and edited_todo['Done'].any():
         st.write("")
         col_clean1, col_clean2 = st.columns([1, 4])
         with col_clean1:
