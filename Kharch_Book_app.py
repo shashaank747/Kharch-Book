@@ -12,7 +12,11 @@ def load_data():
     """Loads expenses from CSV or creates a new DataFrame."""
     if os.path.exists(FILE_PATH):
         try:
-            return pd.read_csv(FILE_PATH)
+            df = pd.read_csv(FILE_PATH)
+            # Fix: Ensure 'Date' is converted to actual date objects for data_editor
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date']).dt.date
+            return df
         except Exception as e:
             st.error(f"Error loading data: {e}")
             return pd.DataFrame(columns=["Date", "Item", "Category", "Amount"])
@@ -53,8 +57,9 @@ with st.container(border=True):
 
     if st.button("Add Expense", type="primary", use_container_width=True):
         if item and amount > 0:
+            # Fix: Store 'date' object directly, not string
             new_entry = pd.DataFrame([{
-                "Date": date.strftime("%Y-%m-%d"),
+                "Date": date, 
                 "Item": item,
                 "Category": category,
                 "Amount": amount
@@ -75,8 +80,9 @@ if not df.empty:
     # Calculate totals
     total_spent = df['Amount'].sum()
     
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    today_spent = df[df['Date'] == today_str]['Amount'].sum()
+    # Fix: Ensure comparison handles date objects vs strings safely
+    today_date = datetime.now().date()
+    today_spent = df[df['Date'] == today_date]['Amount'].sum()
 
     m1, m2 = st.columns(2)
     m1.metric("Spent Today", f"₹{today_spent:,.2f}")
