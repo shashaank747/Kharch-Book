@@ -81,6 +81,7 @@ st.markdown("""
 
 EXPENSES_FILE = 'expenses.csv'
 FUNDS_FILE = 'funds.csv'
+TODO_FILE = 'todo.csv'
 
 # --- Helper Functions ---
 def load_csv(file_path, columns):
@@ -91,7 +92,13 @@ def load_csv(file_path, columns):
                 df['Date'] = pd.to_datetime(df['Date']).dt.date
             for col in columns:
                 if col not in df.columns:
-                    df[col] = "Online" if col == "Mode" else ""
+                    # Default values for missing columns
+                    if col == "Done":
+                        df[col] = False
+                    elif col == "Mode":
+                        df[col] = "Online"
+                    else:
+                        df[col] = ""
             return df
         except Exception as e:
             return pd.DataFrame(columns=columns)
@@ -108,9 +115,12 @@ if 'expenses' not in st.session_state:
     st.session_state.expenses = load_csv(EXPENSES_FILE, ["Date", "Item", "Category", "Amount", "Mode"])
 if 'funds' not in st.session_state:
     st.session_state.funds = load_csv(FUNDS_FILE, ["Date", "Source", "Mode", "Amount"])
+if 'todo' not in st.session_state:
+    st.session_state.todo = load_csv(TODO_FILE, ["Item", "Notes", "Done"])
 
 df_expenses = st.session_state.expenses
 df_funds = st.session_state.funds
+df_todo = st.session_state.todo
 
 # --- Dynamic Category Logic ---
 default_categories = ["Food", "Travel", "Bills", "Shopping", "Entertainment", "Other"]
@@ -149,7 +159,7 @@ with st.sidebar:
     # Navigation Menu
     selected_page = st.radio(
         "Menu", 
-        ["Expenses", "Wallet", "Calculator", "Analysis", "Funds History"],
+        ["Expenses", "Wallet", "Calculator", "Analysis", "Funds History", "To-Buy List"],
         label_visibility="collapsed"
     )
     
@@ -161,7 +171,7 @@ with st.sidebar:
     st.markdown(f"**Online:** ₹{bal_online:,.0f}")
     
     st.divider()
-    st.caption(f"v2.0 • Data saved to CSV")
+    st.caption(f"v2.1 • Data saved to CSV")
 
 # --- PAGE ROUTING ---
 
@@ -395,3 +405,63 @@ elif selected_page == "Funds History":
         st.session_state.funds = edited_funds
         save_csv(edited_funds, FUNDS_FILE)
         st.rerun()
+
+# 6. TO-BUY LIST
+elif selected_page == "To-Buy List":
+    # Editable Title
+    if "todo_title" not in st.session_state:
+        st.session_state.todo_title = "🛍️ Shopping List"
+    
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        new_title = st.text_input("List Name", value=st.session_state.todo_title, label_visibility="collapsed")
+        if new_title != st.session_state.todo_title:
+            st.session_state.todo_title = new_title
+    
+    st.title(st.session_state.todo_title)
+    st.caption("Tick items when bought, then click 'Clean Up' to remove them.")
+
+    # Main Todo Editor
+    edited_todo = st.data_editor(
+        df_todo,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Done": st.column_config.CheckboxColumn(
+                "Bought?",
+                help="Check this box when you have bought the item",
+                default=False,
+                width="small"
+            ),
+            "Item": st.column_config.TextColumn(
+                "Item Name",
+                width="medium",
+                required=True
+            ),
+            "Notes": st.column_config.TextColumn(
+                "Notes (Qty/Brand)",
+                width="large"
+            )
+        }
+    )
+
+    # Save changes automatically
+    if not edited_todo.equals(df_todo):
+        st.session_state.todo = edited_todo
+        save_csv(edited_todo, TODO_FILE)
+        st.rerun()
+
+    # Logic to remove completed items
+    # Check if any item is marked as Done
+    if edited_todo['Done'].any():
+        st.write("")
+        col_clean1, col_clean2 = st.columns([1, 4])
+        with col_clean1:
+            if st.button("🗑️ Clean Up", type="primary", help="Remove all checked items"):
+                # Filter out the rows where Done is True
+                df_remaining = edited_todo[edited_todo['Done'] == False]
+                st.session_state.todo = df_remaining.reset_index(drop=True)
+                save_csv(st.session_state.todo, TODO_FILE)
+                st.toast("List cleaned!", icon="🧹")
+                st.rerun()
