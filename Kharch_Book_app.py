@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 # --- Configuration ---
-st.set_page_config(page_title="Kharch Book", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Kharch Book", page_icon="💸", layout="wide", initial_sidebar_state="expanded")
 
 # --- Custom CSS for UI Polish ---
 st.markdown("""
@@ -84,6 +84,12 @@ FUNDS_FILE = 'funds.csv'
 TODO_FILE = 'todo.csv'
 
 # --- Helper Functions ---
+def get_ist_date():
+    """Returns current date in IST (UTC + 5:30) to fix server timezone issues."""
+    utc_now = datetime.utcnow()
+    ist_now = utc_now + timedelta(hours=5, minutes=30)
+    return ist_now.date()
+
 def load_csv(file_path, columns):
     if os.path.exists(file_path):
         try:
@@ -163,7 +169,7 @@ else:
 bal_cash = total_cash_in - total_cash_out
 bal_online = total_online_in - total_online_out
 
-today_date = datetime.now().date()
+today_date = get_ist_date()
 today_spent = df_expenses[df_expenses['Date'] == today_date]['Amount'].sum()
 total_spent = df_expenses['Amount'].sum()
 
@@ -186,7 +192,7 @@ with st.sidebar:
     st.markdown(f"**Online:** ₹{bal_online:,.2f}")
     
     st.divider()
-    st.caption(f"v2.2 • Data saved to CSV")
+    st.caption(f"v2.3 • Data saved to CSV")
 
 # --- PAGE ROUTING ---
 
@@ -222,13 +228,14 @@ if selected_page == "Expenses":
             with col2:
                 c_a, c_b = st.columns([2, 1])
                 with c_a:
-                    # Input empty by default
+                    # FIX: value=None makes the input empty by default
                     amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
                 with c_b:
                     st.write("") 
                     st.write("") 
                     mode = st.radio("Pay Mode", ["Online", "Cash"], label_visibility="collapsed")
-                date = st.date_input("Date", datetime.now())
+                # FIX: Use get_ist_date() to default to Today (IST)
+                date = st.date_input("Date", value=get_ist_date())
 
             if st.form_submit_button("Add Expense", type="primary", use_container_width=True):
                 final_cat = custom_category.strip() if cat_selection == "Other" and custom_category else cat_selection
@@ -303,11 +310,13 @@ elif selected_page == "Wallet":
             f_amount = st.number_input("Amount (₹)", min_value=0.0, step=0.01, format="%.2f", value=None)
             f_mode = st.radio("Destination Wallet", ["Online (Bank/UPI)", "Cash"], horizontal=True)
             f_source = st.text_input("Source / Note", placeholder="e.g. Salary, Gift")
+            # Added Date Input
+            f_date = st.date_input("Date", value=get_ist_date())
             
             if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
                 if f_amount is not None and f_amount > 0:
                     new_fund = pd.DataFrame([{
-                        "Date": datetime.now().date(),
+                        "Date": f_date,
                         "Source": f_source if f_source else "Manual Add",
                         "Mode": "Online" if "Online" in f_mode else "Cash",
                         "Amount": f_amount
@@ -331,6 +340,8 @@ elif selected_page == "Wallet":
             )
             
             t_note = st.text_input("Note (Optional)", placeholder="e.g. ATM Withdrawal")
+            # Added Date Input
+            t_date = st.date_input("Date", value=get_ist_date())
             
             if st.form_submit_button("🔄 Confirm Transfer", type="primary", use_container_width=True):
                 if t_amount is not None and t_amount > 0:
@@ -347,13 +358,13 @@ elif selected_page == "Wallet":
                     
                     # Logic: Add negative fund to source, positive fund to dest
                     row_out = {
-                        "Date": datetime.now().date(),
+                        "Date": t_date,
                         "Source": f"{desc_out} ({t_note})" if t_note else desc_out,
                         "Mode": src,
                         "Amount": -t_amount
                     }
                     row_in = {
-                        "Date": datetime.now().date(),
+                        "Date": t_date,
                         "Source": f"{desc_in} ({t_note})" if t_note else desc_in,
                         "Mode": dst,
                         "Amount": t_amount
