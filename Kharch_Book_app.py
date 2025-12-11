@@ -70,6 +70,12 @@ st.markdown("""
     
     /* Hide default header */
     header {visibility: hidden;}
+    
+    /* Sidebar Radio styling */
+    section[data-testid="stSidebar"] .stRadio > label {
+        font-size: 1.2rem !important;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,12 +112,22 @@ if 'funds' not in st.session_state:
 df_expenses = st.session_state.expenses
 df_funds = st.session_state.funds
 
+# --- Dynamic Category Logic ---
+default_categories = ["Food", "Travel", "Bills", "Shopping", "Entertainment", "Other"]
+if 'Category' in df_expenses.columns:
+    existing_categories = [str(x) for x in df_expenses['Category'].dropna().unique().tolist()]
+else:
+    existing_categories = []
+combined_categories = list(set(default_categories + existing_categories))
+if "Other" in combined_categories:
+    combined_categories.remove("Other")
+combined_categories.sort()
+combined_categories.append("Other")
+
 # --- Calculations for Dashboard ---
-# Total Funds In
 total_cash_in = df_funds[df_funds['Mode'] == 'Cash']['Amount'].sum()
 total_online_in = df_funds[df_funds['Mode'] == 'Online']['Amount'].sum()
 
-# Total Spent
 if 'Mode' in df_expenses.columns:
     total_cash_out = df_expenses[df_expenses['Mode'] == 'Cash']['Amount'].sum()
     total_online_out = df_expenses[df_expenses['Mode'] != 'Cash']['Amount'].sum()
@@ -122,123 +138,87 @@ else:
 bal_cash = total_cash_in - total_cash_out
 bal_online = total_online_in - total_online_out
 
-# Daily Spend
 today_date = datetime.now().date()
 today_spent = df_expenses[df_expenses['Date'] == today_date]['Amount'].sum()
 total_spent = df_expenses['Amount'].sum()
 
-# --- SIDEBAR: Wallet ---
+# --- SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.markdown("## 💳 **Wallet Manager**")
-    st.info("Add your salary or cash withdrawals here to track balances.")
+    st.markdown("## 💰 Kharch Book")
     
-    with st.form("add_funds_form", clear_on_submit=True):
-        f_amount = st.number_input("Amount (₹)", min_value=0.0, step=100.0)
-        f_mode = st.radio("Destination", ["Online (Bank/UPI)", "Cash"], horizontal=True)
-        f_source = st.text_input("Source", placeholder="e.g. Salary, ATM")
-        
-        if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
-            if f_amount > 0:
-                new_fund = pd.DataFrame([{
-                    "Date": datetime.now().date(),
-                    "Source": f_source if f_source else "Manual Add",
-                    "Mode": "Online" if "Online" in f_mode else "Cash",
-                    "Amount": f_amount
-                }])
-                df_funds = pd.concat([new_fund, df_funds], ignore_index=True)
-                st.session_state.funds = df_funds
-                save_csv(df_funds, FUNDS_FILE)
-                st.success("Added!")
-                st.rerun()
+    # Navigation Menu
+    selected_page = st.radio(
+        "Menu", 
+        ["Expenses", "Wallet", "Calculator", "Analysis", "Funds History"],
+        label_visibility="collapsed"
+    )
     
     st.divider()
-    st.caption(f"v1.3 • Data saved to CSV")
+    
+    # Mini Balance Preview in Sidebar
+    st.caption("Current Balance")
+    st.markdown(f"**Cash:** ₹{bal_cash:,.0f}")
+    st.markdown(f"**Online:** ₹{bal_online:,.0f}")
+    
+    st.divider()
+    st.caption(f"v2.0 • Data saved to CSV")
 
-# --- MAIN PAGE ---
-st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>💰 Kharch Book</h1>", unsafe_allow_html=True)
+# --- PAGE ROUTING ---
 
-# 1. Dashboard Cards (HTML/CSS)
-c1, c2, c3, c4 = st.columns(4)
+# 1. EXPENSES (Dashboard)
+if selected_page == "Expenses":
+    st.title("📝 Expenses")
+    
+    # Dashboard Cards
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.0f}</div></div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.0f}</div></div>""", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Spent Today</div><div class="metric-value red-text">₹{today_spent:,.0f}</div></div>""", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Total Spent</div><div class="metric-value">₹{total_spent:,.0f}</div></div>""", unsafe_allow_html=True)
 
-with c1:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Cash Balance</div>
-        <div class="metric-value green-text">₹{bal_cash:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.write("")
+    
+    # Add Expense Form
+    with st.container(border=True):
+        st.subheader("Add New Entry")
+        with st.form("add_expense_form", clear_on_submit=True):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                item = st.text_input("Description", placeholder="What did you buy?")
+                cat_selection = st.selectbox("Category", combined_categories)
+                if cat_selection == "Other":
+                     custom_category = st.text_input("Enter New Category Name", placeholder="e.g. Medical")
+                else:
+                     custom_category = None
+            with col2:
+                c_a, c_b = st.columns([2, 1])
+                with c_a:
+                    amount = st.number_input("Amount (₹)", min_value=0.0, step=10.0)
+                with c_b:
+                    st.write("") 
+                    st.write("") 
+                    mode = st.radio("Pay Mode", ["Online", "Cash"], label_visibility="collapsed")
+                date = st.date_input("Date", datetime.now())
 
-with c2:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Online Balance</div>
-        <div class="metric-value blue-text">₹{bal_online:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+            if st.form_submit_button("Add Expense", type="primary", use_container_width=True):
+                final_cat = custom_category.strip() if cat_selection == "Other" and custom_category else cat_selection
+                if item and amount > 0:
+                    new_entry = pd.DataFrame([{
+                        "Date": date, "Item": item, "Category": final_cat, "Amount": amount, "Mode": mode
+                    }])
+                    st.session_state.expenses = pd.concat([new_entry, st.session_state.expenses], ignore_index=True)
+                    save_csv(st.session_state.expenses, EXPENSES_FILE)
+                    st.toast("Saved!", icon="✅")
+                    st.rerun()
+                else:
+                    st.error("Please enter description and amount")
 
-with c3:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Spent Today</div>
-        <div class="metric-value red-text">₹{today_spent:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with c4:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Total Spent</div>
-        <div class="metric-value">₹{total_spent:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.write("") # Spacer
-
-# 2. Add Expense Form
-with st.container():
-    st.markdown("### 📝 **New Entry**")
-    with st.form("add_expense_form", clear_on_submit=True, border=True):
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            item = st.text_input("Description", placeholder="What did you buy?")
-            category = st.selectbox("Category", ["Food", "Travel", "Bills", "Shopping", "Entertainment", "Other"])
-        
-        with col2:
-            # Smart Layout for Amount and Mode
-            c_a, c_b = st.columns([2, 1])
-            with c_a:
-                amount = st.number_input("Amount (₹)", min_value=0.0, step=10.0)
-            with c_b:
-                st.write("") # Spacer to align
-                st.write("") 
-                mode = st.radio("Pay Mode", ["Online", "Cash"], horizontal=False, label_visibility="collapsed")
-            
-            date = st.date_input("Date", datetime.now())
-
-        # Full width button
-        if st.form_submit_button("Add Expense", type="primary", use_container_width=True):
-            if item and amount > 0:
-                new_entry = pd.DataFrame([{
-                    "Date": date,
-                    "Item": item,
-                    "Category": category,
-                    "Amount": amount,
-                    "Mode": mode
-                }])
-                st.session_state.expenses = pd.concat([new_entry, st.session_state.expenses], ignore_index=True)
-                save_csv(st.session_state.expenses, EXPENSES_FILE)
-                st.toast("Saved!", icon="✅")
-                st.rerun()
-            else:
-                st.error("Please enter description and amount")
-
-# 3. Data & Tools Tabs
-st.write("")
-tab1, tab2, tab3, tab4 = st.tabs(["📜 Expense Log", "📊 Analysis", "💳 Funds History", "📥 Export"])
-
-with tab1:
-    # Delete Tool
+    # Expenses Table
+    st.write("### 📜 Recent Transactions")
     with st.expander("🗑️ Delete Tool"):
         if not df_expenses.empty:
             del_opts = [f"{i} | {r['Date']} | {r['Item']} | ₹{r['Amount']}" for i, r in df_expenses.iterrows()]
@@ -252,7 +232,6 @@ with tab1:
         else:
             st.info("No expenses to delete.")
 
-    # Main Table
     edited_expenses = st.data_editor(
         df_expenses,
         num_rows="dynamic",
@@ -261,6 +240,7 @@ with tab1:
         column_config={
             "Amount": st.column_config.NumberColumn(format="₹%.2f"),
             "Date": st.column_config.DateColumn(format="DD MMM YYYY"),
+            "Category": st.column_config.SelectboxColumn(options=combined_categories, required=True),
             "Mode": st.column_config.SelectboxColumn(options=["Online", "Cash"], required=True)
         }
     )
@@ -268,103 +248,69 @@ with tab1:
         st.session_state.expenses = edited_expenses
         save_csv(edited_expenses, EXPENSES_FILE)
         st.rerun()
-
-with tab2:
-    if not df_expenses.empty:
-        col_charts1, col_charts2 = st.columns(2)
-        
-        # 1. Category Breakdown (Donut Chart)
-        with col_charts1:
-            st.markdown("##### 🍩 Expenses by Category")
-            category_data = df_expenses.groupby("Category")["Amount"].sum().reset_index()
-            
-            base = alt.Chart(category_data).encode(
-                theta=alt.Theta("Amount", stack=True)
-            )
-            
-            pie = base.mark_arc(outerRadius=120, innerRadius=80).encode(
-                color=alt.Color("Category"),
-                order=alt.Order("Amount", sort="descending"),
-                tooltip=["Category", "Amount"]
-            )
-            
-            text = base.mark_text(radius=140).encode(
-                text="Amount",
-                order=alt.Order("Amount", sort="descending"),
-                color=alt.value("white")
-            )
-            
-            st.altair_chart(pie + text, use_container_width=True)
-
-        # 2. Daily Trend (Bar Chart)
-        with col_charts2:
-            st.markdown("##### 📅 Daily Spending Trend")
-            daily_data = df_expenses.groupby("Date")["Amount"].sum().reset_index()
-            # Ensure proper sorting by date
-            daily_data = daily_data.sort_values("Date")
-            
-            bar_chart = alt.Chart(daily_data).mark_bar(color='#FF5252').encode(
-                x=alt.X('Date', axis=alt.Axis(format='%d %b')),
-                y='Amount',
-                tooltip=['Date', 'Amount']
-            ).interactive()
-            
-            st.altair_chart(bar_chart, use_container_width=True)
-    else:
-        st.info("Add some expenses to see your analytics here.")
-
-with tab3:
-    edited_funds = st.data_editor(
-        df_funds,
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Amount": st.column_config.NumberColumn(format="₹%.2f"),
-            "Date": st.column_config.DateColumn(format="DD MMM YYYY")
-        }
-    )
-    if not edited_funds.equals(df_funds):
-        st.session_state.funds = edited_funds
-        save_csv(edited_funds, FUNDS_FILE)
-        st.rerun()
-
-with tab4:
-    st.warning("Ensure you download this backup periodically.")
+    
+    st.divider()
     csv = df_expenses.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Expenses (CSV)", csv, "expenses.csv", "text/csv", use_container_width=True)
+    st.download_button("📥 Download Expenses CSV", csv, "expenses.csv", "text/csv", use_container_width=True)
 
-# --- Calculator Section (Bottom) ---
-st.divider()
-with st.expander("🧮 **Calculator**", expanded=True):
-    # Calculator Logic
+
+# 2. WALLET (Add Funds)
+elif selected_page == "Wallet":
+    st.title("💳 Wallet Manager")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Cash Balance</div><div class="metric-value green-text">₹{bal_cash:,.0f}</div></div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Online Balance</div><div class="metric-value blue-text">₹{bal_online:,.0f}</div></div>""", unsafe_allow_html=True)
+    
+    st.write("")
+    st.info("Add your salary, cash withdrawals, or other income here.")
+    
+    with st.form("add_funds_form", clear_on_submit=True):
+        f_amount = st.number_input("Amount (₹)", min_value=0.0, step=100.0)
+        f_mode = st.radio("Destination Wallet", ["Online (Bank/UPI)", "Cash"], horizontal=True)
+        f_source = st.text_input("Source / Note", placeholder="e.g. Salary, ATM Withdrawal, Gift")
+        
+        if st.form_submit_button("💰 Add Funds", type="primary", use_container_width=True):
+            if f_amount > 0:
+                new_fund = pd.DataFrame([{
+                    "Date": datetime.now().date(),
+                    "Source": f_source if f_source else "Manual Add",
+                    "Mode": "Online" if "Online" in f_mode else "Cash",
+                    "Amount": f_amount
+                }])
+                df_funds = pd.concat([new_fund, df_funds], ignore_index=True)
+                st.session_state.funds = df_funds
+                save_csv(df_funds, FUNDS_FILE)
+                st.success("Funds Added Successfully!")
+                st.rerun()
+
+# 3. CALCULATOR
+elif selected_page == "Calculator":
+    st.title("🧮 Calculator")
+    
     if "calc_input" not in st.session_state:
         st.session_state.calc_input = ""
 
     def btn_click(val):
         st.session_state.calc_input += str(val)
-
     def calc_clear():
         st.session_state.calc_input = ""
-
     def calc_back():
         st.session_state.calc_input = st.session_state.calc_input[:-1]
-
     def calc_result():
         try:
             st.session_state.calc_input = str(eval(st.session_state.calc_input))
         except:
             st.session_state.calc_input = "Error"
 
-    # Display
     st.markdown(f"""
-    <div style="background-color: #000; padding: 10px; border-radius: 5px; text-align: right; font-family: monospace; font-size: 24px; color: white; margin-bottom: 10px; border: 1px solid #333;">
+    <div style="background-color: #000; padding: 20px; border-radius: 10px; text-align: right; font-family: monospace; font-size: 3rem; color: white; margin-bottom: 20px; border: 1px solid #333;">
         {st.session_state.calc_input if st.session_state.calc_input else "0"}
     </div>
     """, unsafe_allow_html=True)
 
-    # Grid
-    # We use columns to create the grid layout
     b1, b2, b3, b4 = st.columns(4)
     with b1: st.button("C", on_click=calc_clear, use_container_width=True)
     with b2: st.button("⌫", on_click=calc_back, use_container_width=True)
@@ -394,3 +340,58 @@ with st.expander("🧮 **Calculator**", expanded=True):
     with b2: st.button("0", on_click=btn_click, args=("0",), use_container_width=True)
     with b3: st.button(".", on_click=btn_click, args=(".",), use_container_width=True)
     with b4: st.button("=", on_click=calc_result, type="primary", use_container_width=True)
+
+# 4. ANALYSIS
+elif selected_page == "Analysis":
+    st.title("📊 Analysis")
+    if not df_expenses.empty:
+        col_charts1, col_charts2 = st.columns(2)
+        
+        with col_charts1:
+            st.markdown("##### 🍩 Expenses by Category")
+            category_data = df_expenses.groupby("Category")["Amount"].sum().reset_index()
+            base = alt.Chart(category_data).encode(theta=alt.Theta("Amount", stack=True))
+            pie = base.mark_arc(outerRadius=120, innerRadius=80).encode(
+                color=alt.Color("Category"),
+                order=alt.Order("Amount", sort="descending"),
+                tooltip=["Category", "Amount"]
+            )
+            text = base.mark_text(radius=140).encode(
+                text="Amount",
+                order=alt.Order("Amount", sort="descending"),
+                color=alt.value("white")
+            )
+            st.altair_chart(pie + text, use_container_width=True)
+
+        with col_charts2:
+            st.markdown("##### 📅 Daily Spending Trend")
+            daily_data = df_expenses.groupby("Date")["Amount"].sum().reset_index()
+            daily_data = daily_data.sort_values("Date")
+            bar_chart = alt.Chart(daily_data).mark_bar(color='#FF5252').encode(
+                x=alt.X('Date', axis=alt.Axis(format='%d %b')),
+                y='Amount',
+                tooltip=['Date', 'Amount']
+            ).interactive()
+            st.altair_chart(bar_chart, use_container_width=True)
+    else:
+        st.info("Add some expenses to see your analytics here.")
+
+# 5. FUNDS HISTORY
+elif selected_page == "Funds History":
+    st.title("💰 Funds History")
+    st.caption("Log of all money added to your wallet.")
+    
+    edited_funds = st.data_editor(
+        df_funds,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Amount": st.column_config.NumberColumn(format="₹%.2f"),
+            "Date": st.column_config.DateColumn(format="DD MMM YYYY")
+        }
+    )
+    if not edited_funds.equals(df_funds):
+        st.session_state.funds = edited_funds
+        save_csv(edited_funds, FUNDS_FILE)
+        st.rerun()
